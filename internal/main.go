@@ -2,6 +2,7 @@ package main
 
 import (
 	"image"
+	"image/color"
 	"log"
 	"os"
 
@@ -10,13 +11,23 @@ import (
 	"gioui.org/io/key"
 	"gioui.org/io/system"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 )
 
+const (
+	GUISizeX       = 600
+	GUISizeY       = 1000
+	mapSizeX       = 12
+	mapSizeY       = 12
+	roomSize       = 48
+	roomSizeOffset = 2
+)
+
 func main() {
-	windowWidth := unit.Dp(600)
-	windowHeight := unit.Dp(1000)
+	windowWidth := unit.Sp(GUISizeX)
+	windowHeight := unit.Sp(GUISizeY)
 
 	go func() {
 		window := app.NewWindow(
@@ -34,11 +45,6 @@ func main() {
 }
 
 func run(window *app.Window) error {
-	img, _, _, err := loadImageFromFile("/home/petr/git/game-roguelike-mobile/Icon.png")
-	if err != nil {
-		return err
-	}
-
 	for {
 		windowEvent := <-window.Events()
 		switch event := windowEvent.(type) {
@@ -52,33 +58,50 @@ func run(window *app.Window) error {
 			}
 		case system.FrameEvent:
 			ops := new(op.Ops)
-			drawImage(ops, img)
+			drawMap(ops, mapSizeY, mapSizeX)
+			for i := 0; i < mapSizeY; i++ {
+				for j := 0; j < mapSizeY; j++ {
+					drawTile(ops, i, j)
+				}
+			}
 			event.Frame(ops)
-			// window.Invalidate()
 		}
 	}
 }
 
-func drawImage(ops *op.Ops, img image.Image) {
-	imageOp := paint.NewImageOp(img)
-	imageOp.Add(ops)
-	op.Affine(f32.Affine2D{}.Scale(f32.Pt(0, 0), f32.Pt(4, 4)))
+func drawMap(ops *op.Ops, x int, y int) {
+	x = x * (roomSize + roomSizeOffset)
+	y = y * (roomSize + roomSizeOffset)
+
+	stack := op.Save(ops)
+	clip.Rect{Max: image.Pt(x, y)}.Add(ops)
+	paint.ColorOp{
+		Color: color.NRGBA{
+			R: 0x60,
+			G: 0x60,
+			B: 0x60,
+			A: 0xFF,
+		},
+	}.Add(ops)
 	paint.PaintOp{}.Add(ops)
+	stack.Load()
 }
 
-func loadImageFromFile(filePath string) (img image.Image, height int, width int, err error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	defer file.Close()
+func drawTile(ops *op.Ops, x int, y int) {
+	x = x * (roomSize + 2)
+	y = y * (roomSize + 2)
 
-	img, _, err = image.Decode(file)
-
-	// imageConfig, _, err := image.DecodeConfig(file)
-	// if err != nil {
-	// 	return nil, 0, 0, err
-	// }
-
-	return img, 0, 0, err
+	stack := op.Save(ops)
+	op.Offset(f32.Pt(float32(x), float32(y))).Add(ops)
+	clip.Rect{Max: image.Pt(roomSize, roomSize)}.Add(ops)
+	paint.ColorOp{
+		Color: color.NRGBA{
+			R: 0x80,
+			G: 0x80,
+			B: 0x80,
+			A: 0xFF,
+		},
+	}.Add(ops)
+	paint.PaintOp{}.Add(ops)
+	stack.Load()
 }
