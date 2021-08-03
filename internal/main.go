@@ -26,13 +26,10 @@ const (
 )
 
 func main() {
-	windowWidth := unit.Sp(GUISizeX)
-	windowHeight := unit.Sp(GUISizeY)
-
 	go func() {
 		window := app.NewWindow(
 			app.Title("Roguelike"),
-			app.Size(windowWidth, windowHeight),
+			app.Size(unit.Dp(GUISizeX), unit.Dp(GUISizeY)),
 		)
 		if err := run(window); err != nil {
 			log.Println(err)
