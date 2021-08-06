@@ -19,7 +19,11 @@ const (
 	mapSizeY    = 11
 )
 
+var controlState *ControlsState
+
 func main() {
+	controlState = &ControlsState{}
+
 	go func() {
 		window := app.NewWindow(
 			app.Title("Roguelike"),
@@ -61,7 +65,7 @@ func Layout(gtx layout.Context) layout.Dimensions {
 	return layout.Center.Layout(
 		gtx,
 		BoardStyle{
-			// TODO[petr]: send board constants instead
+			controlState: controlState,
 		}.Layout,
 	)
 }

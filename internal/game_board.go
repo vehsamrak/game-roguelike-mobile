@@ -5,13 +5,30 @@ import (
 	"image/color"
 
 	"gioui.org/f32"
-	"gioui.org/layout" // layout is used for layouting widgets.
-	"gioui.org/op"     // op is used for recording different operations.
+	"gioui.org/io/pointer"
+	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 )
 
+const (
+	tag          = "controlPressed"
+	controlWest  = "west"
+	controlSouth = "south"
+	controlEast  = "east"
+	controlNorth = "north"
+)
+
+type ControlsState struct {
+	westControlPressed  bool
+	eastControlPressed  bool
+	southControlPressed bool
+	northControlPressed bool
+}
+
 type BoardStyle struct {
+	controlState *ControlsState
 }
 
 func (board BoardStyle) Layout(gtx layout.Context) layout.Dimensions {
@@ -23,71 +40,144 @@ func (board BoardStyle) Layout(gtx layout.Context) layout.Dimensions {
 			drawTile(gtx, i, j)
 		}
 	}
-	drawControls(gtx)
+	board.drawControls(gtx)
 
 	return layout.Dimensions{Size: gtx.Constraints.Max}
 }
 
-func drawControls(gtx layout.Context) {
+func (board BoardStyle) drawControls(gtx layout.Context) {
 	defer op.Save(gtx.Ops).Load()
 
-	controlSizePadding := gtx.Constraints.Max.X / 20
 	controlSize := gtx.Constraints.Max.X / 5
+	controlSizePadding := gtx.Constraints.Max.X / 20
+
+	westControl := board.drawControl(
+		gtx,
+		controlWest,
+		gtx.Constraints.Min.X,
+		gtx.Constraints.Max.Y-controlSize,
+		gtx.Constraints.Min.X+controlSize,
+		gtx.Constraints.Max.Y,
+	)
+
+	southControl := board.drawControl(
+		gtx,
+		controlSouth,
+		westControl.Min.X+controlSize+controlSizePadding,
+		westControl.Min.Y,
+		westControl.Max.X+controlSize+controlSizePadding,
+		westControl.Max.Y,
+	)
+
+	_ = board.drawControl(
+		gtx,
+		controlEast,
+		southControl.Min.X+controlSize+controlSizePadding,
+		southControl.Min.Y,
+		southControl.Max.X+controlSize+controlSizePadding,
+		southControl.Max.Y,
+	)
+
+	_ = board.drawControl(
+		gtx,
+		controlNorth,
+		southControl.Min.X,
+		southControl.Min.Y-controlSize-controlSizePadding,
+		southControl.Max.X,
+		southControl.Max.Y-controlSize-controlSizePadding,
+	)
+}
+
+func (board BoardStyle) drawControl(gtx layout.Context, eventTag string, xMin int, yMin int, xMax int, yMax int) clip.Rect {
+	defer op.Save(gtx.Ops).Load()
+
+	for _, ev := range gtx.Queue.Events(eventTag) {
+		if eventTag == controlWest {
+			if x, ok := ev.(pointer.Event); ok {
+				switch x.Type {
+				case pointer.Press:
+					board.controlState.westControlPressed = true
+				case pointer.Release:
+					board.controlState.westControlPressed = false
+				}
+			}
+		} else if eventTag == controlEast {
+			if x, ok := ev.(pointer.Event); ok {
+				switch x.Type {
+				case pointer.Press:
+					board.controlState.eastControlPressed = true
+				case pointer.Release:
+					board.controlState.eastControlPressed = false
+				}
+			}
+		} else if eventTag == controlSouth {
+			if x, ok := ev.(pointer.Event); ok {
+				switch x.Type {
+				case pointer.Press:
+					board.controlState.southControlPressed = true
+				case pointer.Release:
+					board.controlState.southControlPressed = false
+				}
+			}
+		} else if eventTag == controlNorth {
+			if x, ok := ev.(pointer.Event); ok {
+				switch x.Type {
+				case pointer.Press:
+					board.controlState.northControlPressed = true
+				case pointer.Release:
+					board.controlState.northControlPressed = false
+				}
+			}
+		}
+	}
+
+	controlSizePadding := gtx.Constraints.Max.X / 20
 
 	controlsColor := color.NRGBA{R: 0xFA, G: 0xFA, B: 0xD2, A: 0xFF}
-	// colorRed := color.NRGBA{R: 0xFF, G: 0x00, B: 0x00, A: 0xFF}
+	colorRed := color.NRGBA{R: 0xFF, G: 0x00, B: 0x00, A: 0xFF}
 
-	// west
-	state := op.Save(gtx.Ops)
 	op.Offset(f32.Pt(float32(controlSizePadding), -float32(controlSizePadding))).Add(gtx.Ops)
-	westPointMin := image.Pt(gtx.Constraints.Min.X, gtx.Constraints.Max.Y-controlSize)
-	westPointMax := image.Pt(gtx.Constraints.Min.X+controlSize, gtx.Constraints.Max.Y)
-	clip.Rect{
-		Min: westPointMin,
-		Max: westPointMax,
-	}.Add(gtx.Ops)
-	paint.ColorOp{Color: controlsColor}.Add(gtx.Ops)
-	paint.PaintOp{}.Add(gtx.Ops)
-	state.Load()
+	pointMin := image.Pt(xMin, yMin)
+	pointMax := image.Pt(xMax, yMax)
 
-	// south
-	state = op.Save(gtx.Ops)
-	op.Offset(f32.Pt(float32(controlSizePadding), -float32(controlSizePadding))).Add(gtx.Ops)
-	southPointMin := image.Pt(westPointMin.X+controlSize+controlSizePadding, westPointMin.Y)
-	southPointMax := image.Pt(westPointMax.X+controlSize+controlSizePadding, westPointMax.Y)
-	clip.Rect{
-		Min: southPointMin,
-		Max: southPointMax,
-	}.Add(gtx.Ops)
-	paint.ColorOp{Color: controlsColor}.Add(gtx.Ops)
-	paint.PaintOp{}.Add(gtx.Ops)
-	state.Load()
+	control := clip.Rect{Min: pointMin, Max: pointMax}
+	control.Add(gtx.Ops)
+	pointer.Rect(image.Rect(control.Min.X, control.Min.Y, control.Max.X, control.Max.Y)).Add(gtx.Ops)
+	pointer.InputOp{Tag: eventTag, Types: pointer.Press | pointer.Release}.Add(gtx.Ops)
 
-	// east
-	state = op.Save(gtx.Ops)
-	op.Offset(f32.Pt(float32(controlSizePadding), -float32(controlSizePadding))).Add(gtx.Ops)
-	eastPointMin := image.Pt(southPointMin.X+controlSize+controlSizePadding, southPointMin.Y)
-	eastPointMax := image.Pt(southPointMax.X+controlSize+controlSizePadding, southPointMax.Y)
-	clip.Rect{
-		Min: eastPointMin,
-		Max: eastPointMax,
-	}.Add(gtx.Ops)
-	paint.ColorOp{Color: controlsColor}.Add(gtx.Ops)
-	paint.PaintOp{}.Add(gtx.Ops)
-	state.Load()
+	var buttonColor color.NRGBA
+	if eventTag == controlWest {
+		if board.controlState.westControlPressed {
+			buttonColor = colorRed
+		} else {
+			buttonColor = controlsColor
+		}
+	} else if eventTag == controlNorth {
+		if board.controlState.northControlPressed {
+			buttonColor = colorRed
+		} else {
+			buttonColor = controlsColor
+		}
+	} else if eventTag == controlSouth {
+		if board.controlState.southControlPressed {
+			buttonColor = colorRed
+		} else {
+			buttonColor = controlsColor
+		}
+	} else if eventTag == controlEast {
+		if board.controlState.eastControlPressed {
+			buttonColor = colorRed
+		} else {
+			buttonColor = controlsColor
+		}
+	} else {
+		buttonColor = controlsColor
+	}
 
-	// north
-	state = op.Save(gtx.Ops)
-	op.Offset(f32.Pt(float32(controlSizePadding), -float32(controlSizePadding))).Add(gtx.Ops)
-	northPointMin := image.Pt(southPointMin.X, southPointMin.Y-controlSize-controlSizePadding)
-	northPointMax := image.Pt(southPointMax.X, southPointMax.Y-controlSize-controlSizePadding)
-	clip.Rect{
-		Min: northPointMin,
-		Max: northPointMax,
-	}.Add(gtx.Ops)
-	paint.ColorOp{Color: controlsColor}.Add(gtx.Ops)
+	paint.ColorOp{Color: buttonColor}.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
-	state.Load()
+
+	return control
 }
 
 func drawMap(gtx layout.Context) {
