@@ -36,6 +36,10 @@ func newContext(w *window) (*context, error) {
 	return c, nil
 }
 
+func (c *context) RenderTarget() gpu.RenderTarget {
+	return gpu.OpenGLRenderTarget{}
+}
+
 func (c *context) API() gpu.API {
 	return gpu.OpenGL{Context: gl.Context(c.ctx)}
 }
@@ -50,19 +54,15 @@ func (c *context) Present() error {
 	return nil
 }
 
-func (c *context) Lock() {}
+func (c *context) Lock() error {
+	return nil
+}
 
 func (c *context) Unlock() {}
 
 func (c *context) Refresh() error {
 	return nil
 }
-
-func (c *context) MakeCurrent() error {
-	return nil
-}
-
-func (c *context) ReleaseCurrent() {}
 
 func (w *window) NewContext() (Context, error) {
 	return newContext(w)

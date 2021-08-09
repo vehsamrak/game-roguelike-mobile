@@ -4,6 +4,7 @@
 
 set -e
 
+cd ~/.cache
 git clone https://github.com/eliasnaur/swiftshader
 cd swiftshader
 

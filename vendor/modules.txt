@@ -1,4 +1,4 @@
-# gioui.org v0.0.0-20210729070555-8cec7e04eb71
+# gioui.org v0.0.0-20210808135400-c49fe63d5676
 ## explicit
 gioui.org/app
 gioui.org/app/internal/log
@@ -34,9 +34,12 @@ gioui.org/op
 gioui.org/op/clip
 gioui.org/op/paint
 gioui.org/unit
-# gioui.org/cpu v0.0.0-20210727122813-41509bcd3462
+# gioui.org/cpu v0.0.0-20210808092351-bfe733dd3334
 gioui.org/cpu
-gioui.org/cpu/piet
+# gioui.org/shader v0.0.0-20210808092941-55e18336189e
+gioui.org/shader
+gioui.org/shader/gio
+gioui.org/shader/piet
 # golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix

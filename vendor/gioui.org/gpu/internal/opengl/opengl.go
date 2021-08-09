@@ -12,6 +12,7 @@ import (
 
 	"gioui.org/gpu/internal/driver"
 	"gioui.org/internal/gl"
+	"gioui.org/shader"
 )
 
 // Backend implements driver.Device.
@@ -67,17 +68,13 @@ type glState struct {
 	storeBuf  gl.Buffer
 	storeBufs [4]gl.Buffer
 	vertArray gl.VertexArray
-	depthMask bool
-	depthFunc gl.Enum
 	srgb      bool
 	blend     struct {
 		enable         bool
 		srcRGB, dstRGB gl.Enum
 		srcA, dstA     gl.Enum
 	}
-	depthTest         bool
 	clearColor        [4]float32
-	clearDepth        float32
 	viewport          [4]int
 	unpack_row_length int
 }
@@ -108,11 +105,9 @@ type gpuTexture struct {
 }
 
 type gpuFramebuffer struct {
-	backend  *Backend
-	obj      gl.Framebuffer
-	hasDepth bool
-	depthBuf gl.Renderbuffer
-	foreign  bool
+	backend *Backend
+	obj     gl.Framebuffer
+	foreign bool
 }
 
 type gpuBuffer struct {
@@ -145,13 +140,13 @@ type uniformsTracker struct {
 type uniformLocation struct {
 	uniform gl.Uniform
 	offset  int
-	typ     driver.DataType
+	typ     shader.DataType
 	size    int
 }
 
 type gpuInputLayout struct {
-	inputs []driver.InputLocation
-	layout []driver.InputDesc
+	inputs []shader.InputLocation
+	layout []shader.InputDesc
 }
 
 // textureTriple holds the type settings for
@@ -212,12 +207,23 @@ func newOpenGLDevice(api driver.OpenGL) (driver.Device, error) {
 	return b, nil
 }
 
-func (b *Backend) BeginFrame(clear bool, viewport image.Point) driver.Framebuffer {
+func (b *Backend) BeginFrame(target driver.RenderTarget, clear bool, viewport image.Point) driver.Framebuffer {
 	b.clear = clear
 	b.glstate = b.queryState()
 	b.savedState = b.glstate
 	b.state = state{}
-	renderFBO := b.glstate.drawFBO
+	var renderFBO gl.Framebuffer
+	if target != nil {
+		switch t := target.(type) {
+		case driver.OpenGLRenderTarget:
+			renderFBO = gl.Framebuffer(t)
+		case *gpuFramebuffer:
+			renderFBO = t.obj
+		default:
+			panic(fmt.Errorf("opengl: invalid render target type: %T", target))
+		}
+	}
+	b.glstate.bindFramebuffer(b.funcs, gl.FRAMEBUFFER, renderFBO)
 	if b.gles {
 		// If the output framebuffer is not in the sRGB colorspace already, emulate it.
 		var fbEncoding int
@@ -275,10 +281,6 @@ func (b *Backend) queryState() glState {
 		arrayBuf:          gl.Buffer(b.funcs.GetBinding(gl.ARRAY_BUFFER_BINDING)),
 		elemBuf:           gl.Buffer(b.funcs.GetBinding(gl.ELEMENT_ARRAY_BUFFER_BINDING)),
 		drawFBO:           gl.Framebuffer(b.funcs.GetBinding(gl.FRAMEBUFFER_BINDING)),
-		depthMask:         b.funcs.GetInteger(gl.DEPTH_WRITEMASK) != gl.FALSE,
-		depthTest:         b.funcs.IsEnabled(gl.DEPTH_TEST),
-		depthFunc:         gl.Enum(b.funcs.GetInteger(gl.DEPTH_FUNC)),
-		clearDepth:        b.funcs.GetFloat(gl.DEPTH_CLEAR_VALUE),
 		clearColor:        b.funcs.GetFloat4(gl.COLOR_CLEAR_VALUE),
 		viewport:          b.funcs.GetInteger4(gl.VIEWPORT),
 		unpack_row_length: b.funcs.GetInteger(gl.UNPACK_ROW_LENGTH),
@@ -335,8 +337,6 @@ func (b *Backend) restoreState(dst glState) {
 	src.set(f, gl.BLEND, dst.blend.enable)
 	bf := dst.blend
 	src.setBlendFuncSeparate(f, bf.srcRGB, bf.dstRGB, bf.srcA, bf.dstA)
-	src.set(f, gl.DEPTH_TEST, dst.depthTest)
-	src.setDepthFunc(f, dst.depthFunc)
 	src.set(f, gl.FRAMEBUFFER_SRGB, dst.srgb)
 	src.bindVertexArray(f, dst.vertArray)
 	src.useProgram(f, dst.prog)
@@ -349,8 +349,6 @@ func (b *Backend) restoreState(dst glState) {
 		src.bindBufferBase(f, gl.SHADER_STORAGE_BUFFER, i, b)
 	}
 	src.bindBuffer(f, gl.SHADER_STORAGE_BUFFER, dst.storeBuf)
-	src.setDepthMask(f, dst.depthMask)
-	src.setClearDepth(f, dst.clearDepth)
 	col := dst.clearColor
 	src.setClearColor(f, col[0], col[1], col[2], col[3])
 	for i, attr := range dst.vertAttribs {
@@ -572,13 +570,6 @@ func (s *glState) pixelStorei(f *gl.Functions, pname gl.Enum, val int) {
 	}
 }
 
-func (s *glState) setClearDepth(f *gl.Functions, d float32) {
-	if d != s.clearDepth {
-		f.ClearDepthf(d)
-		s.clearDepth = d
-	}
-}
-
 func (s *glState) setClearColor(f *gl.Functions, r, g, b, a float32) {
 	col := [4]float32{r, g, b, a}
 	if col != s.clearColor {
@@ -595,13 +586,6 @@ func (s *glState) setViewport(f *gl.Functions, x, y, width, height int) {
 	}
 }
 
-func (s *glState) setDepthFunc(f *gl.Functions, df gl.Enum) {
-	if df != s.depthFunc {
-		f.DepthFunc(df)
-		s.depthFunc = df
-	}
-}
-
 func (s *glState) setBlendFuncSeparate(f *gl.Functions, srcRGB, dstRGB, srcA, dstA gl.Enum) {
 	if srcRGB != s.blend.srcRGB || dstRGB != s.blend.dstRGB || srcA != s.blend.srcA || dstA != s.blend.dstA {
 		s.blend.srcRGB = srcRGB
@@ -609,13 +593,6 @@ func (s *glState) setBlendFuncSeparate(f *gl.Functions, srcRGB, dstRGB, srcA, ds
 		s.blend.srcA = srcA
 		s.blend.dstA = dstA
 		f.BlendFuncSeparate(srcA, dstA, srcA, dstA)
-	}
-}
-
-func (s *glState) setDepthMask(f *gl.Functions, enable bool) {
-	if enable != s.depthMask {
-		f.DepthMask(enable)
-		s.depthMask = enable
 	}
 }
 
@@ -631,11 +608,6 @@ func (s *glState) set(f *gl.Functions, target gl.Enum, enable bool) {
 			return
 		}
 		s.blend.enable = enable
-	case gl.DEPTH_TEST:
-		if enable == s.depthTest {
-			return
-		}
-		s.depthTest = enable
 	default:
 		panic("unknown enable")
 	}
@@ -661,7 +633,7 @@ func (b *Backend) IsTimeContinuous() bool {
 	return b.funcs.GetInteger(gl.GPU_DISJOINT_EXT) == gl.FALSE
 }
 
-func (b *Backend) NewFramebuffer(tex driver.Texture, depthBits int) (driver.Framebuffer, error) {
+func (b *Backend) NewFramebuffer(tex driver.Texture) (driver.Framebuffer, error) {
 	glErr(b.funcs)
 	gltex := tex.(*gpuTexture)
 	fb := b.funcs.CreateFramebuffer()
@@ -672,25 +644,6 @@ func (b *Backend) NewFramebuffer(tex driver.Texture, depthBits int) (driver.Fram
 		return nil, err
 	}
 	b.funcs.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, gltex.obj, 0)
-	if depthBits > 0 {
-		size := gl.Enum(gl.DEPTH_COMPONENT16)
-		switch {
-		case depthBits > 24:
-			size = gl.DEPTH_COMPONENT32F
-		case depthBits > 16:
-			size = gl.DEPTH_COMPONENT24
-		}
-		depthBuf := b.funcs.CreateRenderbuffer()
-		b.glstate.bindRenderbuffer(b.funcs, gl.RENDERBUFFER, depthBuf)
-		b.funcs.RenderbufferStorage(gl.RENDERBUFFER, size, gltex.width, gltex.height)
-		b.funcs.FramebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuf)
-		fbo.depthBuf = depthBuf
-		fbo.hasDepth = true
-		if err := glErr(b.funcs); err != nil {
-			fbo.Release()
-			return nil, err
-		}
-	}
 	if st := b.funcs.CheckFramebufferStatus(gl.FRAMEBUFFER); st != gl.FRAMEBUFFER_COMPLETE {
 		fbo.Release()
 		return nil, fmt.Errorf("incomplete framebuffer, status = 0x%x, err = %d", st, b.funcs.GetError())
@@ -829,10 +782,6 @@ func (b *Backend) useProgram(p *gpuProgram) {
 	b.state.prog = p
 }
 
-func (b *Backend) SetDepthTest(enable bool) {
-	b.glstate.set(b.funcs, gl.DEPTH_TEST, enable)
-}
-
 func (b *Backend) BlendFunc(sfactor, dfactor driver.BlendFactor) {
 	src, dst := toGLBlendFactor(sfactor), toGLBlendFactor(dfactor)
 	b.glstate.setBlendFuncSeparate(b.funcs, src, dst, src, dst)
@@ -851,10 +800,6 @@ func toGLBlendFactor(f driver.BlendFactor) gl.Enum {
 	default:
 		panic("unsupported blend factor")
 	}
-}
-
-func (b *Backend) DepthMask(mask bool) {
-	b.glstate.setDepthMask(b.funcs, mask)
 }
 
 func (b *Backend) SetBlend(enable bool) {
@@ -902,25 +847,7 @@ func (b *Backend) Clear(colR, colG, colB, colA float32) {
 	b.funcs.Clear(gl.COLOR_BUFFER_BIT)
 }
 
-func (b *Backend) ClearDepth(d float32) {
-	b.glstate.setClearDepth(b.funcs, d)
-	b.funcs.Clear(gl.DEPTH_BUFFER_BIT)
-}
-
-func (b *Backend) DepthFunc(f driver.DepthFunc) {
-	var glfunc gl.Enum
-	switch f {
-	case driver.DepthFuncGreater:
-		glfunc = gl.GREATER
-	case driver.DepthFuncGreaterEqual:
-		glfunc = gl.GEQUAL
-	default:
-		panic("unsupported depth func")
-	}
-	b.glstate.setDepthFunc(b.funcs, glfunc)
-}
-
-func (b *Backend) NewInputLayout(vs driver.ShaderSources, layout []driver.InputDesc) (driver.InputLayout, error) {
+func (b *Backend) NewInputLayout(vs shader.Sources, layout []shader.InputDesc) (driver.InputLayout, error) {
 	if len(vs.Inputs) != len(layout) {
 		return nil, fmt.Errorf("NewInputLayout: got %d inputs, expected %d", len(layout), len(vs.Inputs))
 	}
@@ -935,7 +862,7 @@ func (b *Backend) NewInputLayout(vs driver.ShaderSources, layout []driver.InputD
 	}, nil
 }
 
-func (b *Backend) NewComputeProgram(src driver.ShaderSources) (driver.Program, error) {
+func (b *Backend) NewComputeProgram(src shader.Sources) (driver.Program, error) {
 	p, err := gl.CreateComputeProgram(b.funcs, src.GLSL310ES)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", src.Name, err)
@@ -947,7 +874,7 @@ func (b *Backend) NewComputeProgram(src driver.ShaderSources) (driver.Program, e
 	return gpuProg, nil
 }
 
-func (b *Backend) NewProgram(vertShader, fragShader driver.ShaderSources) (driver.Program, error) {
+func (b *Backend) NewProgram(vertShader, fragShader shader.Sources) (driver.Program, error) {
 	attr := make([]string, len(vertShader.Inputs))
 	for _, inp := range vertShader.Inputs {
 		attr[inp.Location] = inp.Name
@@ -1011,7 +938,7 @@ func (b *Backend) NewProgram(vertShader, fragShader driver.ShaderSources) (drive
 	return gpuProg, nil
 }
 
-func lookupUniform(funcs *gl.Functions, p gl.Program, loc driver.UniformLocation) uniformLocation {
+func lookupUniform(funcs *gl.Functions, p gl.Program, loc shader.UniformLocation) uniformLocation {
 	u := funcs.GetUniformLocation(p, loc.Name)
 	if !u.Valid() {
 		panic(fmt.Errorf("uniform %q not found", loc.Name))
@@ -1059,7 +986,7 @@ func (p *gpuProgram) Release() {
 	p.backend.glstate.deleteProgram(p.backend.funcs, p.obj)
 }
 
-func (u *uniformsTracker) setup(funcs *gl.Functions, p gl.Program, uniformSize int, uniforms []driver.UniformLocation) {
+func (u *uniformsTracker) setup(funcs *gl.Functions, p gl.Program, uniformSize int, uniforms []shader.UniformLocation) {
 	u.locs = make([]uniformLocation, len(uniforms))
 	for i, uniform := range uniforms {
 		u.locs[i] = lookupUniform(funcs, p, uniform)
@@ -1090,19 +1017,19 @@ func (p *uniformsTracker) update(funcs *gl.Functions) {
 	for _, u := range p.locs {
 		data := data[u.offset:]
 		switch {
-		case u.typ == driver.DataTypeFloat && u.size == 1:
+		case u.typ == shader.DataTypeFloat && u.size == 1:
 			data := data[:4]
 			v := *(*[1]float32)(unsafe.Pointer(&data[0]))
 			funcs.Uniform1f(u.uniform, v[0])
-		case u.typ == driver.DataTypeFloat && u.size == 2:
+		case u.typ == shader.DataTypeFloat && u.size == 2:
 			data := data[:8]
 			v := *(*[2]float32)(unsafe.Pointer(&data[0]))
 			funcs.Uniform2f(u.uniform, v[0], v[1])
-		case u.typ == driver.DataTypeFloat && u.size == 3:
+		case u.typ == shader.DataTypeFloat && u.size == 3:
 			data := data[:12]
 			v := *(*[3]float32)(unsafe.Pointer(&data[0]))
 			funcs.Uniform3f(u.uniform, v[0], v[1], v[2])
-		case u.typ == driver.DataTypeFloat && u.size == 4:
+		case u.typ == shader.DataTypeFloat && u.size == 4:
 			data := data[:16]
 			v := *(*[4]float32)(unsafe.Pointer(&data[0]))
 			funcs.Uniform4f(u.uniform, v[0], v[1], v[2], v[3])
@@ -1182,9 +1109,9 @@ func (b *Backend) setupVertexArrays() {
 		l := layout.layout[i]
 		var gltyp gl.Enum
 		switch l.Type {
-		case driver.DataTypeFloat:
+		case shader.DataTypeFloat:
 			gltyp = gl.FLOAT
-		case driver.DataTypeShort:
+		case shader.DataTypeShort:
 			gltyp = gl.SHORT
 		default:
 			panic("unsupported data type")
@@ -1211,7 +1138,7 @@ func (b *Backend) BlitFramebuffer(dst, src driver.Framebuffer, srect, drect imag
 	b.funcs.BlitFramebuffer(
 		srect.Min.X, srect.Min.Y, srect.Max.X, srect.Max.Y,
 		drect.Min.X, drect.Min.Y, drect.Max.X, drect.Max.Y,
-		gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT,
+		gl.COLOR_BUFFER_BIT,
 		gl.NEAREST)
 }
 
@@ -1239,10 +1166,9 @@ func (f *gpuFramebuffer) Release() {
 		panic("framebuffer not created by NewFramebuffer")
 	}
 	f.backend.glstate.deleteFramebuffer(f.backend.funcs, f.obj)
-	if f.hasDepth {
-		f.backend.glstate.deleteRenderbuffer(f.backend.funcs, f.depthBuf)
-	}
 }
+
+func (f *gpuFramebuffer) ImplementsRenderTarget() {}
 
 func toTexFilter(f driver.TextureFilter) int {
 	switch f {

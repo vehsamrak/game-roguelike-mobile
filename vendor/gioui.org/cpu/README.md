@@ -7,8 +7,9 @@ modifications. A runtime implemented in C and Go is available for running the
 resulting binaries.
 
 The primary use is to support a CPU-based rendering fallback for
-[Gio](https://gioui.org). In particular, the `piet` directory contains arm,
-arm64, amd64 binaries for [piet-gpu](https://github.com/linebender/piet-gpu).
+[Gio](https://gioui.org). In particular, the `gioui.org/shader/piet` package
+contains arm, arm64, amd64 binaries for
+[piet-gpu](https://github.com/linebender/piet-gpu).
 
 # Compiling and running shaders
 
@@ -18,13 +19,6 @@ The `init.sh` script clones the modifed SwiftShader projects and builds it for
 
 The `example/run.sh` script demonstrates compiling and running a simple compute
 program.
-
-The `piet/piet.sh` script updates the piet-gpu binaries:
-
-```
-$ cd piet
-$ GIO=<path to gio> ./piet.sh
-```
 
 ## Issues and contributions
 

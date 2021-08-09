@@ -6,13 +6,15 @@ import (
 	"errors"
 	"image"
 	"time"
+
+	"gioui.org/shader"
 )
 
 // Device represents the abstraction of underlying GPU
 // APIs such as OpenGL, Direct3D useful for rendering Gio
 // operations.
 type Device interface {
-	BeginFrame(clear bool, viewport image.Point) Framebuffer
+	BeginFrame(target RenderTarget, clear bool, viewport image.Point) Framebuffer
 	EndFrame()
 	Caps() Caps
 	NewTimer() Timer
@@ -20,22 +22,18 @@ type Device interface {
 	// are valid at the point of call.
 	IsTimeContinuous() bool
 	NewTexture(format TextureFormat, width, height int, minFilter, magFilter TextureFilter, bindings BufferBinding) (Texture, error)
-	NewFramebuffer(tex Texture, depthBits int) (Framebuffer, error)
+	NewFramebuffer(tex Texture) (Framebuffer, error)
 	NewImmutableBuffer(typ BufferBinding, data []byte) (Buffer, error)
 	NewBuffer(typ BufferBinding, size int) (Buffer, error)
-	NewComputeProgram(shader ShaderSources) (Program, error)
-	NewProgram(vertexShader, fragmentShader ShaderSources) (Program, error)
-	NewInputLayout(vertexShader ShaderSources, layout []InputDesc) (InputLayout, error)
+	NewComputeProgram(shader shader.Sources) (Program, error)
+	NewProgram(vertexShader, fragmentShader shader.Sources) (Program, error)
+	NewInputLayout(vertexShader shader.Sources, layout []shader.InputDesc) (InputLayout, error)
 
-	DepthFunc(f DepthFunc)
-	ClearDepth(d float32)
 	Clear(r, g, b, a float32)
 	Viewport(x, y, width, height int)
 	DrawArrays(mode DrawMode, off, count int)
 	DrawElements(mode DrawMode, off, count int)
 	SetBlend(enable bool)
-	SetDepthTest(enable bool)
-	DepthMask(mask bool)
 	BlendFunc(sfactor, dfactor BlendFactor)
 
 	BindInputLayout(i InputLayout)
@@ -51,63 +49,6 @@ type Device interface {
 	DispatchCompute(x, y, z int)
 
 	Release()
-}
-
-type ShaderSources struct {
-	Name      string
-	GLSL100ES string
-	GLSL300ES string
-	GLSL310ES string
-	GLSL130   string
-	GLSL150   string
-	HLSL      string
-	Uniforms  UniformsReflection
-	Inputs    []InputLocation
-	Textures  []TextureBinding
-	Hash      string
-}
-
-type UniformsReflection struct {
-	Blocks    []UniformBlock
-	Locations []UniformLocation
-	Size      int
-}
-
-type TextureBinding struct {
-	Name    string
-	Binding int
-}
-
-type UniformBlock struct {
-	Name    string
-	Binding int
-}
-
-type UniformLocation struct {
-	Name   string
-	Type   DataType
-	Size   int
-	Offset int
-}
-
-type InputLocation struct {
-	// For GLSL.
-	Name     string
-	Location int
-	// For HLSL.
-	Semantic      string
-	SemanticIndex int
-
-	Type DataType
-	Size int
-}
-
-// InputDesc describes a vertex attribute as laid out in a Buffer.
-type InputDesc struct {
-	Type DataType
-	Size int
-
-	Offset int
 }
 
 // InputLayout is the driver specific representation of the mapping
@@ -126,10 +67,6 @@ type TextureFilter uint8
 type TextureFormat uint8
 
 type BufferBinding uint8
-
-type DataType uint8
-
-type DepthFunc uint8
 
 type Features uint
 
@@ -155,6 +92,7 @@ type Buffer interface {
 }
 
 type Framebuffer interface {
+	RenderTarget
 	Invalidate()
 	Release()
 	ReadPixels(src image.Rectangle, pixels []byte) error
@@ -171,17 +109,6 @@ type Texture interface {
 	Upload(offset, size image.Point, pixels []byte, stride int)
 	Release()
 }
-
-const (
-	DepthFuncGreater DepthFunc = iota
-	DepthFuncGreaterEqual
-)
-
-const (
-	DataTypeFloat DataType = iota
-	DataTypeInt
-	DataTypeShort
-)
 
 const (
 	BufferBindingIndices BufferBinding = 1 << iota

@@ -52,6 +52,10 @@ func newContext(w *window) (*context, error) {
 	return c, nil
 }
 
+func (c *context) RenderTarget() gpu.RenderTarget {
+	return gpu.OpenGLRenderTarget{}
+}
+
 func (c *context) API() gpu.API {
 	return gpu.OpenGL{}
 }
@@ -68,11 +72,14 @@ func (c *context) Present() error {
 	return nil
 }
 
-func (c *context) Lock() {
+func (c *context) Lock() error {
 	C.gio_lockContext(c.ctx)
+	C.gio_makeCurrentContext(c.ctx)
+	return nil
 }
 
 func (c *context) Unlock() {
+	C.gio_clearCurrentContext()
 	C.gio_unlockContext(c.ctx)
 }
 
@@ -81,17 +88,6 @@ func (c *context) Refresh() error {
 	defer c.Unlock()
 	C.gio_updateContext(c.ctx)
 	return nil
-}
-
-func (c *context) MakeCurrent() error {
-	c.Lock()
-	defer c.Unlock()
-	C.gio_makeCurrentContext(c.ctx)
-	return nil
-}
-
-func (c *context) ReleaseCurrent() {
-	C.gio_clearCurrentContext()
 }
 
 func (w *window) NewContext() (Context, error) {
