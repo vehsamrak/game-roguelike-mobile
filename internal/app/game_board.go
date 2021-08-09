@@ -35,7 +35,7 @@ type GameBoard struct {
 func (gb *GameBoard) Layout(gtx layout.Context) layout.Dimensions {
 	defer op.Save(gtx.Ops).Load()
 
-	drawMap(gtx)
+	gb.drawMap(gtx)
 	for i := 0; i < gb.MapSizeX; i++ {
 		for j := 0; j < gb.MapSizeY; j++ {
 			gb.drawTile(gtx, i, j)
@@ -188,7 +188,7 @@ func (gb GameBoard) drawControl(
 	return control
 }
 
-func drawMap(gtx layout.Context) {
+func (gb *GameBoard) drawMap(gtx layout.Context) {
 	defer op.Save(gtx.Ops).Load()
 
 	clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Add(gtx.Ops)
