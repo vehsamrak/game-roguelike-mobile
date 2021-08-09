@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"os"
 
 	guiapp "gioui.org/app"
@@ -15,23 +16,26 @@ import (
 )
 
 const (
-	WindowSizeX = 600
-	WindowSizeY = 1000
-	mapSizeX    = 11
-	mapSizeY    = 11
+	WindowSizeX    = 600
+	WindowSizeY    = 1000
+	mapSizeX       = 11
+	mapSizeY       = 11
+	mapMaxSizeX    = 20
+	mapMaxSizeY    = 20
+	gameRandomSeed = 2
 )
 
-var controlState *app.ControlsState
-
 func main() {
-	controlState = &app.ControlsState{}
+	rand.Seed(gameRandomSeed)
 
 	go func() {
 		window := guiapp.NewWindow(
 			guiapp.Title("Roguelike"),
 			guiapp.Size(unit.Dp(WindowSizeX), unit.Dp(WindowSizeY)),
 		)
-		if err := run(window); err != nil {
+
+		err := run(window, &app.ControlsState{}, app.NewGameMap(mapMaxSizeX, mapMaxSizeY))
+		if err != nil {
 			log.Println(err)
 			os.Exit(1)
 		}
@@ -41,7 +45,7 @@ func main() {
 	guiapp.Main()
 }
 
-func run(window *guiapp.Window) error {
+func run(window *guiapp.Window, controlState *app.ControlsState, gameMap *app.GameMap) error {
 	for {
 		windowEvent := <-window.Events()
 		switch event := windowEvent.(type) {
@@ -56,16 +60,17 @@ func run(window *guiapp.Window) error {
 		case system.FrameEvent:
 			gtx := layout.NewContext(&op.Ops{}, event)
 
-			Layout(gtx)
+			Layout(gtx, controlState, gameMap)
 
 			event.Frame(gtx.Ops)
 		}
 	}
 }
 
-func Layout(gtx layout.Context) layout.Dimensions {
+func Layout(gtx layout.Context, controlState *app.ControlsState, gameMap *app.GameMap) layout.Dimensions {
 	gameBoard := &app.GameBoard{
 		ControlState: controlState,
+		GameMap:      gameMap,
 		MapSizeX:     mapSizeX,
 		MapSizeY:     mapSizeY,
 	}
