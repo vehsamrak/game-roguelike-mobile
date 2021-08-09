@@ -4,12 +4,14 @@ import (
 	"log"
 	"os"
 
-	"gioui.org/app"
+	guiapp "gioui.org/app"
 	"gioui.org/io/key"
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
+
+	"github.com/vehsamrak/game-roguelike-mobile/internal/app"
 )
 
 const (
@@ -19,15 +21,15 @@ const (
 	mapSizeY    = 11
 )
 
-var controlState *ControlsState
+var controlState *app.ControlsState
 
 func main() {
-	controlState = &ControlsState{}
+	controlState = &app.ControlsState{}
 
 	go func() {
-		window := app.NewWindow(
-			app.Title("Roguelike"),
-			app.Size(unit.Dp(WindowSizeX), unit.Dp(WindowSizeY)),
+		window := guiapp.NewWindow(
+			guiapp.Title("Roguelike"),
+			guiapp.Size(unit.Dp(WindowSizeX), unit.Dp(WindowSizeY)),
 		)
 		if err := run(window); err != nil {
 			log.Println(err)
@@ -36,10 +38,10 @@ func main() {
 		os.Exit(0)
 	}()
 
-	app.Main()
+	guiapp.Main()
 }
 
-func run(window *app.Window) error {
+func run(window *guiapp.Window) error {
 	for {
 		windowEvent := <-window.Events()
 		switch event := windowEvent.(type) {
@@ -62,10 +64,14 @@ func run(window *app.Window) error {
 }
 
 func Layout(gtx layout.Context) layout.Dimensions {
+	gameBoard := &app.GameBoard{
+		ControlState: controlState,
+		MapSizeX:     mapSizeX,
+		MapSizeY:     mapSizeY,
+	}
+
 	return layout.Center.Layout(
 		gtx,
-		BoardStyle{
-			controlState: controlState,
-		}.Layout,
+		gameBoard.Layout,
 	)
 }

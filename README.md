@@ -1,3 +1,3 @@
 ### Сборка APK-пакета
-~/go/bin/gogio -target android . && adb install internal.apk
+cd cmd/game && ~/go/bin/gogio -target android . && adb install game.apk && cd -
 
