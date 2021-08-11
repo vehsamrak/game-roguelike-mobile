@@ -29,8 +29,8 @@ type ControlsState struct {
 type GameBoard struct {
 	ControlState *ControlsState
 	GameMap      *GameMap
-	MapSizeX     int
-	MapSizeY     int
+	BoardSizeX   int
+	BoardSizeY   int
 }
 
 func (gb *GameBoard) Layout(gtx layout.Context) layout.Dimensions {
@@ -198,39 +198,47 @@ func (gb *GameBoard) drawMap(gtx layout.Context) {
 	}.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 
-	for i := 0; i < gb.MapSizeX; i++ {
-		for j := 0; j < gb.MapSizeY; j++ {
-			gb.drawTile(gtx, i, j)
+	characterX, characterY := gb.GameMap.character.XY()
+	boardCenterX, boardCenterY := gb.findBoardCenterXY()
+	mapX := characterX - boardCenterX
+	mapMinY := characterY - boardCenterY
+	mapY := mapMinY
+	for boardX := 0; boardX < gb.BoardSizeX; boardX++ {
+		for boardY := 0; boardY < gb.BoardSizeY; boardY++ {
+			gb.drawTile(gtx, boardX, boardY, mapX, mapY)
+			mapY++
 		}
+		mapX++
+		mapY = mapMinY
 	}
 }
 
-func (gb *GameBoard) drawTile(gtx layout.Context, roomX int, roomY int) {
+func (gb *GameBoard) drawTile(gtx layout.Context, boardX int, boardY int, mapX int, mapY int) {
 	defer op.Save(gtx.Ops).Load()
 
-	roomSize := gtx.Constraints.Max.X / gb.MapSizeX
+	roomSize := gtx.Constraints.Max.X / gb.BoardSizeX
 	roomPadding := roomSize / 50
-	x := roomX * roomSize
-	y := roomY * roomSize
+	x := boardX * roomSize
+	y := boardY * roomSize
 
 	roomSize = roomSize - roomPadding
 
 	op.Offset(f32.Pt(float32(x), float32(y))).Add(gtx.Ops)
 	clip.Rect{Min: image.Pt(roomPadding, roomPadding), Max: image.Pt(roomSize, roomSize)}.Add(gtx.Ops)
 
-	paint.ColorOp{Color: gb.tileColor(roomX, roomY)}.Add(gtx.Ops)
+	paint.ColorOp{Color: gb.tileColor(mapX, mapY)}.Add(gtx.Ops)
 
 	paint.PaintOp{}.Add(gtx.Ops)
 }
 
-func (gb *GameBoard) tileColor(roomX int, roomY int) (roomColor color.NRGBA) {
+func (gb *GameBoard) tileColor(mapX int, mapY int) (roomColor color.NRGBA) {
 	// character tile
 	characterX, characterY := gb.GameMap.character.XY()
-	if roomX == characterX && roomY == characterY {
+	if mapX == characterX && mapY == characterY {
 		return color.NRGBA{R: 0xDC, G: 0x14, B: 0x3C, A: 0xFF}
 	}
 
-	roomTile := gb.GameMap.FindTileByXY(roomX, roomY)
+	roomTile := gb.GameMap.FindTileByXY(mapX, mapY)
 	if roomTile == nil {
 		return color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
 	}
@@ -256,6 +264,6 @@ func (gb *GameBoard) tileColor(roomX int, roomY int) (roomColor color.NRGBA) {
 	return roomColor
 }
 
-func (gb *GameBoard) findCenterXY() (x int, y int) {
-	return gb.MapSizeX / 2, gb.MapSizeY / 2
+func (gb *GameBoard) findBoardCenterXY() (x int, y int) {
+	return gb.BoardSizeX / 2, gb.BoardSizeY / 2
 }

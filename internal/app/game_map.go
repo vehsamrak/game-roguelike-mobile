@@ -39,19 +39,10 @@ func NewGameMap(xMin int, xMax int, yMin int, yMax int, character *Character) *G
 }
 
 func createTiles(xMin int, xMax int, yMin int, yMax int) map[int]map[int]*Tile {
-	borderXMin := xMin - 1
-	borderXMax := xMax + 1
-	borderYMin := yMin - 1
-	borderYMax := yMax + 1
-
 	var tileType TileType
 	tiles := make(map[int]map[int]*Tile)
-	for x := borderXMin; x <= borderXMax; x++ {
-		for y := borderYMin; y <= borderYMax; y++ {
-			if x == borderXMin || x == borderXMax || y == borderYMin || y == borderYMax {
-				tileType = TileTypeCliff
-			}
-
+	for x := xMin; x <= xMax; x++ {
+		for y := yMin; y <= yMax; y++ {
 			if tiles[x] == nil {
 				tiles[x] = make(map[int]*Tile)
 			}

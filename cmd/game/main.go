@@ -17,15 +17,17 @@ import (
 )
 
 const (
-	WindowSizeX    = 600
-	WindowSizeY    = 1000
-	mapSizeX       = 11
-	mapSizeY       = 11
-	mapMaxSizeXMin = -20
-	mapMaxSizeXMax = 20
-	mapMaxSizeYMin = -20
-	mapMaxSizeYMax = 20
-	gameRandomSeed = 0
+	WindowSizeX          = 600
+	WindowSizeY          = 1000
+	mapSizeX             = 11
+	mapSizeY             = 11
+	mapMaxSizeXMin       = -10
+	mapMaxSizeXMax       = 10
+	mapMaxSizeYMin       = -10
+	mapMaxSizeYMax       = 10
+	gameRandomSeed       = 0
+	characterStartPointX = -6
+	characterStartPointY = -8
 )
 
 func main() {
@@ -48,7 +50,7 @@ func main() {
 				mapMaxSizeXMax,
 				mapMaxSizeYMin,
 				mapMaxSizeYMax,
-				app.NewCharacter(1, 1),
+				app.NewCharacter(characterStartPointX, characterStartPointY),
 			),
 		)
 		if err != nil {
@@ -87,8 +89,8 @@ func Layout(gtx layout.Context, controlState *app.ControlsState, gameMap *app.Ga
 	gameBoard := &app.GameBoard{
 		ControlState: controlState,
 		GameMap:      gameMap,
-		MapSizeX:     mapSizeX,
-		MapSizeY:     mapSizeY,
+		BoardSizeX:   mapSizeX,
+		BoardSizeY:   mapSizeY,
 	}
 
 	return layout.Center.Layout(
