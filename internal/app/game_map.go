@@ -18,7 +18,8 @@ type Tile struct {
 }
 
 type GameMap struct {
-	tiles map[int]map[int]*Tile
+	character *Character
+	tiles     map[int]map[int]*Tile
 }
 
 // tileTypes returns tile types that could be generated
@@ -30,21 +31,24 @@ func tileTypes() []TileType {
 	}
 }
 
-func NewGameMap(xMax int, yMax int) *GameMap {
+func NewGameMap(xMin int, xMax int, yMin int, yMax int, character *Character) *GameMap {
 	return &GameMap{
-		tiles: createTiles(xMax, yMax),
+		tiles:     createTiles(xMin, xMax, yMin, yMax),
+		character: character,
 	}
 }
 
-func createTiles(xMax int, yMax int) map[int]map[int]*Tile {
-	borderX := xMax + 1
-	borderY := yMax + 1
+func createTiles(xMin int, xMax int, yMin int, yMax int) map[int]map[int]*Tile {
+	borderXMin := xMin - 1
+	borderXMax := xMax + 1
+	borderYMin := yMin - 1
+	borderYMax := yMax + 1
 
 	var tileType TileType
 	tiles := make(map[int]map[int]*Tile)
-	for x := 0; x <= borderX; x++ {
-		for y := 0; y <= borderY; y++ {
-			if x == borderX || y == borderY {
+	for x := borderXMin; x <= borderXMax; x++ {
+		for y := borderYMin; y <= borderYMax; y++ {
+			if x == borderXMin || x == borderXMax || y == borderYMin || y == borderYMax {
 				tileType = TileTypeCliff
 			}
 

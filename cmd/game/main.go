@@ -20,9 +20,11 @@ const (
 	WindowSizeY    = 1000
 	mapSizeX       = 11
 	mapSizeY       = 11
-	mapMaxSizeX    = 20
-	mapMaxSizeY    = 20
-	gameRandomSeed = 2
+	mapMaxSizeXMin = -20
+	mapMaxSizeXMax = 20
+	mapMaxSizeYMin = -20
+	mapMaxSizeYMax = 20
+	gameRandomSeed = 0
 )
 
 func main() {
@@ -34,7 +36,15 @@ func main() {
 			guiapp.Size(unit.Dp(WindowSizeX), unit.Dp(WindowSizeY)),
 		)
 
-		err := run(window, &app.ControlsState{}, app.NewGameMap(mapMaxSizeX, mapMaxSizeY))
+		err := run(
+			window, &app.ControlsState{}, app.NewGameMap(
+				mapMaxSizeXMin,
+				mapMaxSizeXMax,
+				mapMaxSizeYMin,
+				mapMaxSizeYMax,
+				app.NewCharacter(1, 1),
+			),
+		)
 		if err != nil {
 			log.Println(err)
 			os.Exit(1)

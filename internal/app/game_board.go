@@ -218,30 +218,40 @@ func (gb *GameBoard) drawTile(gtx layout.Context, roomX int, roomY int) {
 	op.Offset(f32.Pt(float32(x), float32(y))).Add(gtx.Ops)
 	clip.Rect{Min: image.Pt(roomPadding, roomPadding), Max: image.Pt(roomSize, roomSize)}.Add(gtx.Ops)
 
-	var roomColor color.NRGBA
-	if roomX == gb.MapSizeX/2 && roomY == gb.MapSizeY/2 {
-		roomColor = color.NRGBA{R: 0xDC, G: 0x14, B: 0x3C, A: 0xFF}
-	} else {
-		roomTile := gb.GameMap.FindTileByXY(roomX, roomY)
-
-		switch roomTile.Type {
-		case TileTypeForest:
-			// limegreen
-			roomColor = color.NRGBA{R: 0x32, G: 0xCD, B: 0x32, A: 0xFF}
-		case TileTypeWater:
-			// lightskyblue
-			roomColor = color.NRGBA{R: 0x87, G: 0xCE, B: 0xFA, A: 0xFF}
-		case TileTypeMountain:
-			// goldenrod
-			roomColor = color.NRGBA{R: 0xDA, G: 0xA5, B: 0x20, A: 0xFF}
-		case TileTypeCliff:
-			// slategray
-			roomColor = color.NRGBA{R: 0x70, G: 0x80, B: 0x90, A: 0xFF}
-		default:
-			roomColor = color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
-		}
-	}
-	paint.ColorOp{Color: roomColor}.Add(gtx.Ops)
+	paint.ColorOp{Color: gb.tileColor(roomX, roomY)}.Add(gtx.Ops)
 
 	paint.PaintOp{}.Add(gtx.Ops)
+}
+
+func (gb *GameBoard) tileColor(roomX int, roomY int) (roomColor color.NRGBA) {
+	// character tile
+	characterX, characterY := gb.GameMap.character.XY()
+	if roomX == characterX && roomY == characterY {
+		return color.NRGBA{R: 0xDC, G: 0x14, B: 0x3C, A: 0xFF}
+	}
+
+	roomTile := gb.GameMap.FindTileByXY(roomX, roomY)
+	if roomTile == nil {
+		return color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
+	}
+
+	// color by tile type
+	switch roomTile.Type {
+	case TileTypeForest:
+		// limegreen
+		roomColor = color.NRGBA{R: 0x32, G: 0xCD, B: 0x32, A: 0xFF}
+	case TileTypeWater:
+		// lightskyblue
+		roomColor = color.NRGBA{R: 0x87, G: 0xCE, B: 0xFA, A: 0xFF}
+	case TileTypeMountain:
+		// goldenrod
+		roomColor = color.NRGBA{R: 0xDA, G: 0xA5, B: 0x20, A: 0xFF}
+	case TileTypeCliff:
+		// slategray
+		roomColor = color.NRGBA{R: 0x70, G: 0x80, B: 0x90, A: 0xFF}
+	default:
+		roomColor = color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
+	}
+
+	return roomColor
 }
