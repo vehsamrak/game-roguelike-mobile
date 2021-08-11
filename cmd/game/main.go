@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
@@ -31,6 +32,11 @@ func main() {
 	rand.Seed(gameRandomSeed)
 
 	go func() {
+		if mapSizeX%2 == 0 {
+			log.Println(fmt.Sprintf("Map size X must always be even. Now it is odd - %d", mapSizeX))
+			os.Exit(1)
+		}
+
 		window := guiapp.NewWindow(
 			guiapp.Title("Roguelike"),
 			guiapp.Size(unit.Dp(WindowSizeX), unit.Dp(WindowSizeY)),
