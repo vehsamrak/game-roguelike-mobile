@@ -255,3 +255,7 @@ func (gb *GameBoard) tileColor(roomX int, roomY int) (roomColor color.NRGBA) {
 
 	return roomColor
 }
+
+func (gb *GameBoard) findCenterXY() (x int, y int) {
+	return gb.MapSizeX / 2, gb.MapSizeY / 2
+}
