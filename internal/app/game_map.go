@@ -31,7 +31,13 @@ func tileTypes() []TileType {
 	}
 }
 
-func NewGameMap(xMin int, xMax int, yMin int, yMax int, character *Character) *GameMap {
+func NewGameMap(
+	xMin int,
+	xMax int,
+	yMin int,
+	yMax int,
+	character *Character,
+) *GameMap {
 	return &GameMap{
 		tiles:     createTiles(xMin, xMax, yMin, yMax),
 		character: character,

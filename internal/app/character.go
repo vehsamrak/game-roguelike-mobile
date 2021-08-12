@@ -12,6 +12,11 @@ func NewCharacter(x int, y int) *Character {
 	}
 }
 
+func (c *Character) SetXY(x int, y int) {
+	c.x = x
+	c.y = y
+}
+
 func (c *Character) XY() (int, int) {
 	return c.x, c.y
 }

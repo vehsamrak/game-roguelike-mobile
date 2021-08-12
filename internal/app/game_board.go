@@ -27,10 +27,11 @@ type ControlsState struct {
 }
 
 type GameBoard struct {
-	ControlState *ControlsState
-	GameMap      *GameMap
-	BoardSizeX   int
-	BoardSizeY   int
+	ControlState            *ControlsState
+	GameMap                 *GameMap
+	CharacterActionProvider *CharacterActionProvider
+	BoardSizeX              int
+	BoardSizeY              int
 }
 
 func (gb *GameBoard) Layout(gtx layout.Context) layout.Dimensions {
@@ -101,6 +102,7 @@ func (gb GameBoard) drawControl(
 				switch x.Type {
 				case pointer.Press:
 					gb.ControlState.westControlPressed = true
+					gb.CharacterActionProvider.ProvideAction(characterActionMove).Act([]string{directionWest})
 				case pointer.Release:
 					gb.ControlState.westControlPressed = false
 				}
@@ -110,6 +112,7 @@ func (gb GameBoard) drawControl(
 				switch x.Type {
 				case pointer.Press:
 					gb.ControlState.eastControlPressed = true
+					gb.CharacterActionProvider.ProvideAction(characterActionMove).Act([]string{directionEast})
 				case pointer.Release:
 					gb.ControlState.eastControlPressed = false
 				}
@@ -119,6 +122,7 @@ func (gb GameBoard) drawControl(
 				switch x.Type {
 				case pointer.Press:
 					gb.ControlState.southControlPressed = true
+					gb.CharacterActionProvider.ProvideAction(characterActionMove).Act([]string{directionSouth})
 				case pointer.Release:
 					gb.ControlState.southControlPressed = false
 				}
@@ -128,6 +132,7 @@ func (gb GameBoard) drawControl(
 				switch x.Type {
 				case pointer.Press:
 					gb.ControlState.northControlPressed = true
+					gb.CharacterActionProvider.ProvideAction(characterActionMove).Act([]string{directionNorth})
 				case pointer.Release:
 					gb.ControlState.northControlPressed = false
 				}

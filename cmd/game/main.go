@@ -26,8 +26,8 @@ const (
 	mapMaxSizeYMin       = -10
 	mapMaxSizeYMax       = 10
 	gameRandomSeed       = 0
-	characterStartPointX = -6
-	characterStartPointY = -8
+	characterStartPointX = 0
+	characterStartPointY = 0
 )
 
 func main() {
@@ -44,14 +44,20 @@ func main() {
 			guiapp.Size(unit.Dp(WindowSizeX), unit.Dp(WindowSizeY)),
 		)
 
+		character := app.NewCharacter(characterStartPointX, characterStartPointY)
+		gameMap := app.NewGameMap(
+			mapMaxSizeXMin,
+			mapMaxSizeXMax,
+			mapMaxSizeYMin,
+			mapMaxSizeYMax,
+			character,
+		)
+
 		err := run(
-			window, &app.ControlsState{}, app.NewGameMap(
-				mapMaxSizeXMin,
-				mapMaxSizeXMax,
-				mapMaxSizeYMin,
-				mapMaxSizeYMax,
-				app.NewCharacter(characterStartPointX, characterStartPointY),
-			),
+			window,
+			&app.ControlsState{},
+			gameMap,
+			app.NewCharacterActionProvider(character, gameMap),
 		)
 		if err != nil {
 			log.Println(err)
@@ -63,7 +69,12 @@ func main() {
 	guiapp.Main()
 }
 
-func run(window *guiapp.Window, controlState *app.ControlsState, gameMap *app.GameMap) error {
+func run(
+	window *guiapp.Window,
+	controlState *app.ControlsState,
+	gameMap *app.GameMap,
+	characterActionProvider *app.CharacterActionProvider,
+) error {
 	for {
 		windowEvent := <-window.Events()
 		switch event := windowEvent.(type) {
@@ -78,19 +89,25 @@ func run(window *guiapp.Window, controlState *app.ControlsState, gameMap *app.Ga
 		case system.FrameEvent:
 			gtx := layout.NewContext(&op.Ops{}, event)
 
-			Layout(gtx, controlState, gameMap)
+			Layout(gtx, controlState, gameMap, characterActionProvider)
 
 			event.Frame(gtx.Ops)
 		}
 	}
 }
 
-func Layout(gtx layout.Context, controlState *app.ControlsState, gameMap *app.GameMap) layout.Dimensions {
+func Layout(
+	gtx layout.Context,
+	controlState *app.ControlsState,
+	gameMap *app.GameMap,
+	characterActionProvider *app.CharacterActionProvider,
+) layout.Dimensions {
 	gameBoard := &app.GameBoard{
-		ControlState: controlState,
-		GameMap:      gameMap,
-		BoardSizeX:   mapSizeX,
-		BoardSizeY:   mapSizeY,
+		ControlState:            controlState,
+		CharacterActionProvider: characterActionProvider,
+		GameMap:                 gameMap,
+		BoardSizeX:              mapSizeX,
+		BoardSizeY:              mapSizeY,
 	}
 
 	return layout.Center.Layout(
