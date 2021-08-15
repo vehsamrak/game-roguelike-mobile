@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"log"
 	"math/rand"
 	"os"
@@ -17,7 +18,7 @@ import (
 )
 
 const (
-	WindowSizeX          = 600
+	WindowSizeX          = 550
 	WindowSizeY          = 1000
 	mapSizeX             = 11
 	mapSizeY             = 11
@@ -55,9 +56,10 @@ func main() {
 
 		err := run(
 			window,
-			&app.ControlsState{},
+			app.NewControlsState(),
 			gameMap,
 			app.NewCharacterActionProvider(character, gameMap),
+			app.NewImageMap(),
 		)
 		if err != nil {
 			log.Println(err)
@@ -74,6 +76,7 @@ func run(
 	controlState *app.ControlsState,
 	gameMap *app.GameMap,
 	characterActionProvider *app.CharacterActionProvider,
+	imageMap map[string]image.Image,
 ) error {
 	for {
 		windowEvent := <-window.Events()
@@ -89,7 +92,7 @@ func run(
 		case system.FrameEvent:
 			gtx := layout.NewContext(&op.Ops{}, event)
 
-			Layout(gtx, controlState, gameMap, characterActionProvider)
+			Layout(gtx, controlState, gameMap, characterActionProvider, imageMap)
 
 			event.Frame(gtx.Ops)
 		}
@@ -101,11 +104,13 @@ func Layout(
 	controlState *app.ControlsState,
 	gameMap *app.GameMap,
 	characterActionProvider *app.CharacterActionProvider,
+	imageMap map[string]image.Image,
 ) layout.Dimensions {
 	gameBoard := &app.GameBoard{
 		ControlState:            controlState,
 		CharacterActionProvider: characterActionProvider,
 		GameMap:                 gameMap,
+		ImagesMap:               imageMap,
 		BoardSizeX:              mapSizeX,
 		BoardSizeY:              mapSizeY,
 	}

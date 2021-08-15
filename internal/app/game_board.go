@@ -1,8 +1,11 @@
 package app
 
 import (
+	"fmt"
 	"image"
 	"image/color"
+	"log"
+	"os"
 
 	"gioui.org/f32"
 	"gioui.org/io/pointer"
@@ -10,20 +13,47 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"github.com/nfnt/resize"
 )
 
 const (
-	controlWest  = "west"
-	controlSouth = "south"
-	controlEast  = "east"
-	controlNorth = "north"
+	controlWest           = "west"
+	controlSouth          = "south"
+	controlEast           = "east"
+	controlNorth          = "north"
+	controlCharacterStats = "characterStats"
+
+	imageClose = "assets/controls/image-close.png"
 )
 
+var colorTan = color.NRGBA{R: 0xD2, G: 0xB4, B: 0x8C, A: 0xFF}
+var colorDarkGray = color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
+
 type ControlsState struct {
-	westControlPressed  bool
-	eastControlPressed  bool
-	southControlPressed bool
-	northControlPressed bool
+	westControlPressed           bool
+	eastControlPressed           bool
+	southControlPressed          bool
+	northControlPressed          bool
+	characterStatsControlPressed bool
+	characterStatsWindowOpened   bool
+	controlsActive               bool
+}
+
+func NewControlsState() *ControlsState {
+	return &ControlsState{
+		controlsActive: true,
+	}
+}
+
+func NewImageMap() map[string]image.Image {
+	var err error
+	imageMap := make(map[string]image.Image)
+	imageMap[imageClose], err = loadImage(imageClose, 40, 0)
+	if err != nil {
+		panic(err)
+	}
+
+	return imageMap
 }
 
 type GameBoard struct {
@@ -32,6 +62,7 @@ type GameBoard struct {
 	CharacterActionProvider *CharacterActionProvider
 	BoardSizeX              int
 	BoardSizeY              int
+	ImagesMap               map[string]image.Image
 }
 
 func (gb *GameBoard) Layout(gtx layout.Context) layout.Dimensions {
@@ -39,6 +70,9 @@ func (gb *GameBoard) Layout(gtx layout.Context) layout.Dimensions {
 
 	gb.drawMap(gtx)
 	gb.drawControls(gtx)
+	if gb.ControlState.characterStatsWindowOpened {
+		gb.drawScreen(gtx)
+	}
 
 	return layout.Dimensions{Size: gtx.Constraints.Max}
 }
@@ -83,6 +117,15 @@ func (gb GameBoard) drawControls(gtx layout.Context) {
 		southControl.Min.Y-controlSize-controlSizePadding,
 		southControl.Max.X,
 		southControl.Max.Y-controlSize-controlSizePadding,
+	)
+
+	_ = gb.drawControl(
+		gtx,
+		controlCharacterStats,
+		westControl.Min.X,
+		westControl.Min.Y-controlSize-controlSizePadding-controlSize-controlSizePadding,
+		westControl.Max.X,
+		westControl.Max.Y-controlSize-controlSizePadding-controlSize-controlSizePadding,
 	)
 }
 
@@ -137,6 +180,17 @@ func (gb GameBoard) drawControl(
 					gb.ControlState.northControlPressed = false
 				}
 			}
+		} else if eventTag == controlCharacterStats {
+			if x, ok := ev.(pointer.Event); ok {
+				switch x.Type {
+				case pointer.Press:
+					gb.ControlState.characterStatsControlPressed = true
+					gb.ControlState.characterStatsWindowOpened = true
+					gb.ControlState.controlsActive = false
+				case pointer.Release:
+					gb.ControlState.characterStatsControlPressed = false
+				}
+			}
 		}
 	}
 
@@ -152,7 +206,10 @@ func (gb GameBoard) drawControl(
 	control := clip.Rect{Min: pointMin, Max: pointMax}
 	control.Add(gtx.Ops)
 	pointer.Rect(image.Rect(control.Min.X, control.Min.Y, control.Max.X, control.Max.Y)).Add(gtx.Ops)
-	pointer.InputOp{Tag: eventTag, Types: pointer.Press | pointer.Release}.Add(gtx.Ops)
+
+	if gb.ControlState.controlsActive {
+		pointer.InputOp{Tag: eventTag, Types: pointer.Press | pointer.Release}.Add(gtx.Ops)
+	}
 
 	var buttonColor color.NRGBA
 	if eventTag == controlWest {
@@ -175,6 +232,12 @@ func (gb GameBoard) drawControl(
 		}
 	} else if eventTag == controlEast {
 		if gb.ControlState.eastControlPressed {
+			buttonColor = colorRed
+		} else {
+			buttonColor = controlsColor
+		}
+	} else if eventTag == controlCharacterStats {
+		if gb.ControlState.characterStatsControlPressed {
 			buttonColor = colorRed
 		} else {
 			buttonColor = controlsColor
@@ -271,4 +334,79 @@ func (gb *GameBoard) tileColor(mapX int, mapY int) (roomColor color.NRGBA) {
 
 func (gb *GameBoard) findBoardCenterXY() (x int, y int) {
 	return gb.BoardSizeX / 2, gb.BoardSizeY / 2
+}
+
+func (gb *GameBoard) drawScreen(gtx layout.Context) {
+	defer op.Save(gtx.Ops).Load()
+
+	roomSize := gtx.Constraints.Max.X / gb.BoardSizeX
+	roomPadding := roomSize / 50
+	roomSize = roomSize + roomPadding
+
+	gtx.Constraints = layout.Constraints{
+		Min: image.Pt(gtx.Constraints.Min.X+roomSize, gtx.Constraints.Min.Y+roomSize),
+		Max: image.Pt(gtx.Constraints.Max.X-roomSize, gtx.Constraints.Max.Y-roomSize),
+	}
+
+	clip.Rect{
+		Min: image.Pt(gtx.Constraints.Min.X, gtx.Constraints.Min.Y),
+		Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y),
+	}.Add(gtx.Ops)
+	paint.ColorOp{Color: colorDarkGray}.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
+
+	offsetX := roomSize
+	offsetY := roomSize
+
+	gb.drawImage(gtx, imageClose, offsetX, offsetY, roomSize)
+}
+
+func (gb *GameBoard) drawImage(gtx layout.Context, imageName string, offsetX, offsetY int, roomSize int) {
+	defer op.Save(gtx.Ops).Load()
+
+	offset := gtx.Constraints.Max.X / gb.BoardSizeX / 5
+
+	opState := op.Save(gtx.Ops)
+	clip.Rect{
+		Min: image.Pt(gtx.Constraints.Min.X, gtx.Constraints.Min.Y),
+		Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y),
+	}.Add(gtx.Ops)
+	paint.ColorOp{Color: colorTan}.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
+	opState.Load()
+
+	image, imageExists := gb.ImagesMap[imageName]
+	if !imageExists || image == nil {
+		return
+	}
+
+	imageOp := paint.NewImageOp(image)
+	op.Offset(
+		f32.Pt(
+			float32(gtx.Constraints.Max.X-offset-image.Bounds().Size().X),
+			float32(gtx.Constraints.Min.Y+offset),
+		),
+	).Add(gtx.Ops)
+	imageOp.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
+}
+
+func loadImage(imageFilePath string, width, height uint) (image.Image, error) {
+	file, err := os.Open(imageFilePath)
+	if err != nil {
+		path, err := os.Getwd()
+		if err != nil {
+			log.Println(err)
+		}
+		fmt.Println(path)
+
+		return nil, err
+	}
+	defer file.Close()
+
+	image, _, err := image.Decode(file)
+
+	resizedImage := resize.Resize(width, height, image, resize.Lanczos3)
+
+	return resizedImage, err
 }
