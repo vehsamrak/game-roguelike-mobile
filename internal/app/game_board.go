@@ -26,8 +26,14 @@ const (
 	imageClose = "assets/controls/image-close.png"
 )
 
-var colorTan = color.NRGBA{R: 0xD2, G: 0xB4, B: 0x8C, A: 0xFF}
-var colorDarkGray = color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
+var (
+	colorTan          = color.NRGBA{R: 0xD2, G: 0xB4, B: 0x8C, A: 0xFF}
+	colorLimegreen    = color.NRGBA{R: 0x32, G: 0xCD, B: 0x32, A: 0xFF}
+	colorLightskyblue = color.NRGBA{R: 0x87, G: 0xCE, B: 0xFA, A: 0xFF}
+	colorGoldenrod    = color.NRGBA{R: 0xDA, G: 0xA5, B: 0x20, A: 0xFF}
+	colorSlategray    = color.NRGBA{R: 0x70, G: 0x80, B: 0x90, A: 0xFF}
+	colorDarkGray     = color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
+)
 
 type ControlsState struct {
 	westControlPressed           bool
@@ -71,7 +77,7 @@ func (gb *GameBoard) Layout(gtx layout.Context) layout.Dimensions {
 	gb.drawMap(gtx)
 	gb.drawControls(gtx)
 	if gb.ControlState.characterStatsWindowOpened {
-		gb.drawScreen(gtx)
+		gb.drawModal(gtx)
 	}
 
 	return layout.Dimensions{Size: gtx.Constraints.Max}
@@ -209,6 +215,8 @@ func (gb GameBoard) drawControl(
 
 	if gb.ControlState.controlsActive {
 		pointer.InputOp{Tag: eventTag, Types: pointer.Press | pointer.Release}.Add(gtx.Ops)
+	} else {
+		pointer.InputOp{Tag: eventTag, Types: pointer.Release}.Add(gtx.Ops)
 	}
 
 	var buttonColor color.NRGBA
@@ -257,6 +265,7 @@ func (gb *GameBoard) drawMap(gtx layout.Context) {
 
 	clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Add(gtx.Ops)
 	paint.ColorOp{
+		// TODO[petr]: move to color variable
 		Color: color.NRGBA{
 			R: 0x60,
 			G: 0x60,
@@ -308,25 +317,21 @@ func (gb *GameBoard) tileColor(mapX int, mapY int) (roomColor color.NRGBA) {
 
 	roomTile := gb.GameMap.FindTileByXY(mapX, mapY)
 	if roomTile == nil {
-		return color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
+		return colorDarkGray
 	}
 
 	// color by tile type
 	switch roomTile.Type {
 	case TileTypeForest:
-		// limegreen
-		roomColor = color.NRGBA{R: 0x32, G: 0xCD, B: 0x32, A: 0xFF}
+		roomColor = colorLimegreen
 	case TileTypeWater:
-		// lightskyblue
-		roomColor = color.NRGBA{R: 0x87, G: 0xCE, B: 0xFA, A: 0xFF}
+		roomColor = colorLightskyblue
 	case TileTypeMountain:
-		// goldenrod
-		roomColor = color.NRGBA{R: 0xDA, G: 0xA5, B: 0x20, A: 0xFF}
+		roomColor = colorGoldenrod
 	case TileTypeCliff:
-		// slategray
-		roomColor = color.NRGBA{R: 0x70, G: 0x80, B: 0x90, A: 0xFF}
+		roomColor = colorSlategray
 	default:
-		roomColor = color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xFF}
+		roomColor = colorDarkGray
 	}
 
 	return roomColor
@@ -336,7 +341,7 @@ func (gb *GameBoard) findBoardCenterXY() (x int, y int) {
 	return gb.BoardSizeX / 2, gb.BoardSizeY / 2
 }
 
-func (gb *GameBoard) drawScreen(gtx layout.Context) {
+func (gb *GameBoard) drawModal(gtx layout.Context) {
 	defer op.Save(gtx.Ops).Load()
 
 	roomSize := gtx.Constraints.Max.X / gb.BoardSizeX
@@ -355,40 +360,53 @@ func (gb *GameBoard) drawScreen(gtx layout.Context) {
 	paint.ColorOp{Color: colorDarkGray}.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 
-	offsetX := roomSize
-	offsetY := roomSize
-
-	gb.drawImage(gtx, imageClose, offsetX, offsetY, roomSize)
+	gb.drawImage(gtx, imageClose, true)
 }
 
-func (gb *GameBoard) drawImage(gtx layout.Context, imageName string, offsetX, offsetY int, roomSize int) {
+// drawImage draws image and creates it's button. Image name will be used as button tag
+func (gb *GameBoard) drawImage(gtx layout.Context, imageName string, createButton bool) {
 	defer op.Save(gtx.Ops).Load()
 
 	offset := gtx.Constraints.Max.X / gb.BoardSizeX / 5
 
-	opState := op.Save(gtx.Ops)
-	clip.Rect{
-		Min: image.Pt(gtx.Constraints.Min.X, gtx.Constraints.Min.Y),
-		Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y),
-	}.Add(gtx.Ops)
-	paint.ColorOp{Color: colorTan}.Add(gtx.Ops)
-	paint.PaintOp{}.Add(gtx.Ops)
-	opState.Load()
-
-	image, imageExists := gb.ImagesMap[imageName]
-	if !imageExists || image == nil {
+	imageBitMap, imageExists := gb.ImagesMap[imageName]
+	if !imageExists || imageBitMap == nil {
 		return
 	}
 
-	imageOp := paint.NewImageOp(image)
+	imageOp := paint.NewImageOp(imageBitMap)
 	op.Offset(
 		f32.Pt(
-			float32(gtx.Constraints.Max.X-offset-image.Bounds().Size().X),
+			float32(gtx.Constraints.Max.X-offset-imageBitMap.Bounds().Size().X),
 			float32(gtx.Constraints.Min.Y+offset),
 		),
 	).Add(gtx.Ops)
 	imageOp.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
+
+	if createButton {
+		pointer.Rect(
+			image.Rect(
+				imageBitMap.Bounds().Min.X,
+				imageBitMap.Bounds().Min.Y,
+				imageBitMap.Bounds().Max.X,
+				imageBitMap.Bounds().Max.Y,
+			),
+		).Add(gtx.Ops)
+		pointer.InputOp{Tag: imageName, Types: pointer.Press | pointer.Release}.Add(gtx.Ops)
+	}
+
+	for _, ev := range gtx.Queue.Events(imageName) {
+		if imageName == imageClose {
+			if x, ok := ev.(pointer.Event); ok {
+				switch x.Type {
+				case pointer.Press:
+					gb.ControlState.controlsActive = true
+					gb.ControlState.characterStatsWindowOpened = false
+				}
+			}
+		}
+	}
 }
 
 func loadImage(imageFilePath string, width, height uint) (image.Image, error) {
