@@ -1,6 +1,7 @@
 package app
 
 import (
+	"embed"
 	"fmt"
 	"image"
 	"image/color"
@@ -14,6 +15,8 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"github.com/nfnt/resize"
+
+	"github.com/vehsamrak/game-roguelike-mobile/assets"
 )
 
 const (
@@ -22,8 +25,6 @@ const (
 	controlEast           = "east"
 	controlNorth          = "north"
 	controlCharacterStats = "characterStats"
-
-	imageClose = "assets/controls/image-close.png"
 )
 
 var (
@@ -51,11 +52,11 @@ func NewControlsState() *ControlsState {
 	}
 }
 
-func NewImageMap() map[string]image.Image {
+func NewImageMap(fileSystem embed.FS) map[string]image.Image {
 	var err error
 	imageMap := make(map[string]image.Image)
-	imageMap[imageClose], err = loadImage(imageClose, 40, 0)
-	if err != nil {
+	imageMap[assets.ImageClose], err = loadImage(fileSystem, assets.ImageClose, 40, 0)
+	if err != nil || imageMap[assets.ImageClose] == nil {
 		panic(err)
 	}
 
@@ -360,7 +361,7 @@ func (gb *GameBoard) drawModal(gtx layout.Context) {
 	paint.ColorOp{Color: colorDarkGray}.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 
-	gb.drawImage(gtx, imageClose, true)
+	gb.drawImage(gtx, assets.ImageClose, true)
 }
 
 // drawImage draws image and creates it's button. Image name will be used as button tag
@@ -397,7 +398,7 @@ func (gb *GameBoard) drawImage(gtx layout.Context, imageName string, createButto
 	}
 
 	for _, ev := range gtx.Queue.Events(imageName) {
-		if imageName == imageClose {
+		if imageName == assets.ImageClose {
 			if x, ok := ev.(pointer.Event); ok {
 				switch x.Type {
 				case pointer.Press:
@@ -409,8 +410,8 @@ func (gb *GameBoard) drawImage(gtx layout.Context, imageName string, createButto
 	}
 }
 
-func loadImage(imageFilePath string, width, height uint) (image.Image, error) {
-	file, err := os.Open(imageFilePath)
+func loadImage(fileSystem embed.FS, imageFilePath string, width, height uint) (image.Image, error) {
+	file, err := fileSystem.Open(imageFilePath)
 	if err != nil {
 		path, err := os.Getwd()
 		if err != nil {

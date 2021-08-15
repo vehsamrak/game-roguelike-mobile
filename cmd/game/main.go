@@ -14,6 +14,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 
+	"github.com/vehsamrak/game-roguelike-mobile/assets"
 	"github.com/vehsamrak/game-roguelike-mobile/internal/app"
 )
 
@@ -59,7 +60,7 @@ func main() {
 			app.NewControlsState(),
 			gameMap,
 			app.NewCharacterActionProvider(character, gameMap),
-			app.NewImageMap(),
+			app.NewImageMap(assets.FileSystem),
 		)
 		if err != nil {
 			log.Println(err)
